@@ -51,6 +51,16 @@ docker compose down -v       # apaga o volume do banco (recria tabelas na próxi
 
 Sem `-v`, avisos e usuários já criados permanecem. Com `-v`, o MySQL recria tudo a partir de `sql/init.sql` e `site/bin/criar-usuarios.php` roda de novo na subida.
 
+### Recarregar o serviço web
+
+Se o site não refletir o que você espera (login estranho, Apache “preso”, ou quiser repetir a rotina de subida do PHP), reinicie só o container **web**:
+
+```bash
+docker compose restart web
+```
+
+Na subida, o `docker/entrada.sh` tenta de novo o `site/bin/criar-usuarios.php` (usuários de demo e limpeza de legado no banco). A pasta `site/` já é montada ao vivo; o restart ajuda quando o processo web precisa ser recriado, não para “salvar” cada edição de `.php`.
+
 ---
 
 

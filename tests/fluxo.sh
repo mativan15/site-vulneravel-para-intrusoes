@@ -79,11 +79,11 @@ fi
 
 marca=$(date +%s)
 curl -s -c "$jar" -b "$jar" -o /dev/null \
-  -d "titulo=Ensaio+${marca}&corpo=Texto+do+ensaio+${marca}" \
+  -d "titulo=Aviso+teste+${marca}&corpo=Texto+do+aviso+de+verificacao+${marca}" \
   "$base/publicar.php"
 
 corpo=$(curl -s -c "$jar" -b "$jar" "$base/avisos.php")
-if printf '%s' "$corpo" | grep -q "Ensaio ${marca}"; then
+if printf '%s' "$corpo" | grep -q "Aviso teste ${marca}"; then
   ok "Publicar aviso e título visível na listagem"
 else
   erro "Publicar aviso e título visível na listagem"

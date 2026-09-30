@@ -55,4 +55,47 @@ $conexao->query(
     . "WHERE titulo = 'Marcacao' AND corpo LIKE '%<%'"
 );
 
+function id_usuario_por_email($conexao, $email)
+{
+    $consulta = $conexao->prepare('SELECT id FROM usuarios WHERE email = ? LIMIT 1');
+    $consulta->bind_param('s', $email);
+    $consulta->execute();
+    $consulta->bind_result($id);
+    if (!$consulta->fetch()) {
+        $consulta->close();
+        return null;
+    }
+    $consulta->close();
+    return (int) $id;
+}
+
+$contagem = $conexao->query('SELECT COUNT(*) AS n FROM avisos');
+$row = $contagem ? $contagem->fetch_assoc() : null;
+$total_avisos = $row ? (int) $row['n'] : 0;
+if ($contagem) {
+    $contagem->free();
+}
+
+if ($total_avisos === 0) {
+    $exemplos = array(
+        array('ivan@avisos.br', 'Aviso: laboratório', 'O laboratório fica aberto para testes do projeto nesta semana.'),
+        array('daniel@avisos.br', 'Aviso: senha de demo', 'A senha aviso123 vale apenas neste mural de laboratório.'),
+        array('pedro@avisos.br', 'Aviso: impressora', 'Teste a impressora do corredor pelo menu Impressora.'),
+        array('ivan@avisos.br', 'Aviso: publicar', 'Use Publicar para colocar um comunicado novo na lista.'),
+        array('pedro@avisos.br', 'Aviso: anexos', 'Arquivos enviados em Anexos ficam disponíveis no endereço do site.'),
+    );
+    $insere_aviso = $conexao->prepare(
+        'INSERT INTO avisos (usuario_id, titulo, corpo) VALUES (?, ?, ?)'
+    );
+    foreach ($exemplos as $exemplo) {
+        $uid = id_usuario_por_email($conexao, $exemplo[0]);
+        if (!$uid) {
+            continue;
+        }
+        $insere_aviso->bind_param('iss', $uid, $exemplo[1], $exemplo[2]);
+        $insere_aviso->execute();
+    }
+    $insere_aviso->close();
+}
+
 exit(0);
