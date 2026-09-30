@@ -1,0 +1,19 @@
+CREATE TABLE usuarios (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  nome VARCHAR(80) NOT NULL,
+  email VARCHAR(120) NOT NULL,
+  senha_hash VARCHAR(255) NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY email_unico (email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE avisos (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  usuario_id INT UNSIGNED NOT NULL,
+  titulo VARCHAR(140) NOT NULL,
+  corpo TEXT NOT NULL,
+  criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY avisos_usuario (usuario_id),
+  CONSTRAINT avisos_usuario_fk FOREIGN KEY (usuario_id) REFERENCES usuarios (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

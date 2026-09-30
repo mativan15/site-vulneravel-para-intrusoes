@@ -1,0 +1,31 @@
+services:
+  web:
+    build: .
+    ports:
+      - "8080:80"
+    volumes:
+      - ./site:/var/www/html
+      - ./apache/000-default.conf:/etc/apache2/sites-available/000-default.conf:ro
+    depends_on:
+      db:
+        condition: service_healthy
+  db:
+    image: mysql:5.7
+    platform: linux/amd64
+    environment:
+      MYSQL_ROOT_PASSWORD: laboratorio
+      MYSQL_DATABASE: app
+      MYSQL_USER: app
+      MYSQL_PASSWORD: app
+    volumes:
+      - dbdata:/var/lib/mysql
+      - ./mysql/my.cnf:/etc/mysql/conf.d/mural.cnf:ro
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-plaboratorio"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+volumes:
+  dbdata:

