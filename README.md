@@ -10,7 +10,7 @@ Mural interno de avisos para o projeto de **Engenharia de Segurança**. O ambien
 | URL                      | `http://localhost:8080/login.php`                   |
 | Porta no host            | **8080** (MySQL **não** é exposto no host)          |
 | Relatório formal (LaTeX) | `relatorio/main.tex` → compilar para PDF            |
-| Teste automático         | `./tests/fluxo.sh` → última linha: `fluxo feliz ok` |
+| Teste automático         | `./tests/fluxo.sh` → `[OK]`/`[ERRO]` em cada passo; saída 0 se tudo passou |
 
 
 ---
@@ -229,21 +229,17 @@ docker compose down
 
 ### O que faz `tests/fluxo.sh`
 
-É um **ensaio automático do fluxo feliz**: confirma que o site responde e que login, publicação e listagem funcionam **sem** explorar as falhas de segurança.
+É um **ensaio automático antes da banca**: percorre o **fluxo normal** do mural e faz *smoke tests* das **cinco falhas intencionais** do roteiro (SQL na busca, login fraco, Impressora, upload, LFI). Cada verificação imprime **`[OK] descrição`** ou **`[ERRO] descrição`**; no final, resume se o ambiente está pronto.
 
-O script usa `curl` contra `http://localhost:8080` e um arquivo temporário de cookies (`jar`) para manter a sessão entre os passos:
+**Ambiente (se `docker` estiver no PATH):** container `web` rodando e PHP **5.6.40**.
 
-1. **Página de login** — pede `GET /login.php` e exige HTTP **200**.
-2. **Login** — envia `POST` com `ivan@avisos.br` e senha `aviso123`; o servidor grava o cookie de sessão no `jar`.
-3. **Publicar** — `POST` em `publicar.php` com título e corpo únicos (`Ensaio` + timestamp atual), ainda autenticado.
-4. **Listar** — `GET` em `avisos.php` com o mesmo cookie.
-5. **Conferir** — o HTML da lista deve conter o título do ensaio e o nome **Ivan**. Se tudo passou, imprime `fluxo feliz ok` e termina com código 0.
+**Fluxo normal:** login HTTP 200; login Ivan; publicar e listar aviso; páginas Impressora, Modelos, Anexos e Meu usuário; e-mail de Ivan no perfil.
 
-Se qualquer passo falhar (site parado, banco indisponível, login errado, aviso não apareceu), o script **para na hora** (`set -e`) e não imprime a mensagem de sucesso.
+**Falhas (demonstração):** `UNION` na busca; Daniel com senha errada; `whoami` na Impressora; upload de `.php` em anexos; LFI de `/etc/passwd`.
 
-**O que o script não testa:** busca SQL, login fraco, Impressora, anexos, LFI nem as vulnerabilidades do relatório. Só o caminho normal do mural.
+O script **não para no primeiro erro**: executa todos os passos e termina com código **0** só se nenhum `[ERRO]` apareceu. Cria um arquivo `anexos/fluxo-probe-<timestamp>.php` no container (web shell de teste); pode apagar depois manualmente.
 
-**Pré-requisito:** containers no ar (`docker compose up -d`) e porta 8080 acessível na máquina onde você roda o script.
+**Pré-requisito:** containers no ar (`docker compose up -d`) e porta **8080** acessível na máquina onde você roda o script.
 
 ```bash
 chmod +x tests/fluxo.sh

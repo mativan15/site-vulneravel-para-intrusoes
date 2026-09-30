@@ -61,8 +61,8 @@ e-mail, hash de senha) e \texttt{avisos} (título, corpo, autor e carimbo de tem
 
 \textbf{Papel no relatório.} Nas seções seguintes, ``o site'' ou ``o mural'' referem-se sempre a este
 aplicativo USP Avisos: a arquitetura Docker o hospeda; as falhas intencionais estão mapeadas às
-páginas acima; e o script \texttt{tests/fluxo.sh} valida o \emph{fluxo feliz} (login, publicação e
-listagem) antes das demonstrações de ataque.
+páginas acima; e o script \texttt{tests/fluxo.sh} imprime \texttt{[OK]} ou \texttt{[ERRO]} para cada
+passo do fluxo normal e das cinco falhas do roteiro, indicando se o ambiente está pronto para a banca.
 
 \subsection{Escopo e limites}
 
@@ -385,8 +385,8 @@ docker compose up -d --build
 \end{lstlisting}
 
 Verificação rápida: \url{http://localhost:8080/login.php} (HTTP 200); \texttt{docker compose exec web php -v}
-deve reportar PHP 5.6.40. O script \texttt{tests/fluxo.sh} valida login, publicação e listagem (a
-explicação do script também consta do \texttt{README.md}).
+deve reportar PHP 5.6.40. O script \texttt{tests/fluxo.sh} automatiza essas checagens e as dos
+cenários de ataque (detalhes no \texttt{README.md}, seção~7).
 
 Em Apple Silicon, a primeira subida do MySQL~5.7 emulado (\texttt{linux/amd64}) pode levar vários
 minutos (detalhes e dicas de diagnóstico no \texttt{README.md}).
