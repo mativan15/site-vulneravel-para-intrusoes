@@ -45,7 +45,8 @@ if (!$linhas) {
 }
 foreach ($linhas as $aviso) {
     echo '<article><h2>' . htmlspecialchars($aviso['titulo'], ENT_QUOTES, 'UTF-8') . '</h2>';
-    echo '<p>' . nl2br(htmlspecialchars($aviso['corpo'], ENT_QUOTES, 'UTF-8')) . '</p>';
+    $texto = strip_tags($aviso['corpo']);
+    echo '<p>' . nl2br(htmlspecialchars($texto, ENT_QUOTES, 'UTF-8')) . '</p>';
     echo '<p>' . htmlspecialchars($aviso['nome'], ENT_QUOTES, 'UTF-8') . '</p></article>';
 }
 layout_fim();

