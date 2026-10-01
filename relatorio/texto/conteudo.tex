@@ -21,6 +21,9 @@ O enunciado da disciplina solicita, na primeira parte, um provedor web com um si
 contenha \emph{diversas vulnerabilidades exploráveis} e que permita \emph{intrusão pelo site}.
 A entrega inclui configurações do Apache e do MySQL, os principais arquivos do site, um relatório
 das vulnerabilidades e, quando possível, compartilhamento do ambiente via máquina virtual ou Docker.
+O repositório Git do grupo concentra código, Compose e \texttt{README.md}:
+\url{https://github.com/mativan15/site-vulneravel-para-intrusoes}~\cite{repo}
+(o slug antigo \texttt{trabalho-web-parte1} no GitHub ainda redireciona para este repositório).
 
 \subsection{O aplicativo \textit{USP Avisos}}
 \label{sec:usp-avisos}
@@ -376,8 +379,14 @@ wrappers; \texttt{basename()}; nunca passar entrada do usuário diretamente a \t
 
 O passo a passo completo de instalação (Docker Desktop, primeira subida, parada do ambiente,
 recriação do banco com \texttt{docker compose down -v}, credenciais de demonstração e roteiro para
-a banca) está no arquivo \texttt{README.md} na raiz do repositório entregue. Este relatório resume
+a banca) está no arquivo \texttt{README.md} do repositório~\cite{repo}. Este relatório resume
 apenas o essencial para reproduzir o ambiente.
+
+Clone (ou atualize) o projeto:
+\begin{lstlisting}
+git clone https://github.com/mativan15/site-vulneravel-para-intrusoes.git
+cd site-vulneravel-para-intrusoes
+\end{lstlisting}
 
 Na pasta do projeto:
 \begin{lstlisting}
@@ -405,7 +414,8 @@ As referências seguem o formato numérico da IEEE \cite{ieeeStyle}. Foram escol
 primárias ou amplamente aceitas na comunidade de segurança de software: taxonomia OWASP para
 riscos em aplicações web, entradas CWE alinhadas a cada falha implementada, RFC da IETF para
 nomes DNS de documentação, documentação oficial de PHP e Docker para a stack do laboratório, e o
-enunciado do projeto como requisito acadêmico. URLs foram verificadas em setembro de 2026; o OWASP
+enunciado do projeto como requisito acadêmico, e o repositório GitHub da entrega~\cite{repo}.
+URLs foram verificadas em setembro de 2026; o OWASP
 Top 10:2021 permanece referência estável para classificação (edição mais recente no portal OWASP
 \cite{owasp}).
 
@@ -419,6 +429,11 @@ Accessed: Sep. 30, 2026.
 \bibitem{enunciado}
 Material didático da disciplina de Engenharia de Segurança, ``Enunciado do Projeto --- Partes 1 e
 2,'' documento interno, 2026, unpublished.
+
+\bibitem{repo}
+P. Fuziwara Filho, I. Sardon Medina, and D. dias Silva Filho, ``USP Avisos --- Parte 1
+(\texttt{site-vulneravel-para-intrusoes}),'' GitHub repository, 2026. [Online]. Available:
+\url{https://github.com/mativan15/site-vulneravel-para-intrusoes}. Accessed: Sep. 30, 2026.
 
 \bibitem{owasp}
 OWASP Foundation, ``OWASP Top 10:2021'' and OWASP Cheat Sheet Series (incl.\ SQL Injection
