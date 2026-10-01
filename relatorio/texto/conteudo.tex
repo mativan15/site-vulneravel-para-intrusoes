@@ -184,7 +184,7 @@ isso é coerente com o modelo de ``único ponto de entrada'' para o mural.
 
 A Tabela~\ref{tab:resumo} resume as falhas. Nas subseções seguintes, cada item é analisado com
 vetor, pré-condições, reprodução, impacto na tríade CIA, classificação segundo OWASP Top 10
-\cite{owasp2021} e CWE \cite{cwe} e mitigação hipotética.
+\cite{owasp} e CWE \cite{cwe} e mitigação hipotética.
 
 \begin{table}[h]
 \centering
@@ -211,7 +211,7 @@ LFI & \texttt{modelo.php} & Leitura (e possível execução) de arquivos & Relat
 sem verificar a senha, desde que o campo senha não esteja vazio.
 
 \textbf{Classificação.} OWASP Top 10:2021 --- A07:2021 \emph{Identification and Authentication Failures}
-\cite{owasp2021}; CWE-287 \emph{Improper Authentication} \cite{cwe287}.
+\cite{owasp}; CWE-287 \emph{Improper Authentication} \cite{cwe}.
 
 \textbf{Pré-condições.} Conhecimento do e-mail de um usuário cadastrado; acesso à página de login.
 
@@ -245,8 +245,8 @@ aplicar rate limiting.
 concatena a entrada na cláusula \texttt{LIKE}. A listagem sem busca usa consulta preparada e não
 apresenta o defeito --- ilustrando inconsistência de controles no mesmo módulo.
 
-\textbf{Classificação.} OWASP Top 10:2021 --- A03:2021 \emph{Injection} \cite{owasp2021,owaspSql};
-CWE-89 \emph{SQL Injection} \cite{cwe89}.
+\textbf{Classificação.} OWASP Top 10:2021 --- A03:2021 \emph{Injection} \cite{owasp};
+CWE-89 \emph{SQL Injection} \cite{cwe}.
 
 \textbf{Pré-condições.} Sessão autenticada (conta legítima ou obtida via falha de autenticação).
 
@@ -274,7 +274,7 @@ rm -f "$jar"
 mais permissivos no banco, potencial \texttt{UPDATE}/\texttt{DELETE}. A confidencialidade dos dados
 da aplicação é comprometida.
 
-\textbf{Mitigação hipotética.} Consultas parametrizadas em todos os caminhos \cite{phpPrepared,owaspSql};
+\textbf{Mitigação hipotética.} Consultas parametrizadas em todos os caminhos \cite{phpPrepared,owasp};
 ORM com binding seguro; princípio do menor privígio no usuário MySQL; monitoramento de consultas
 anômalas.
 
@@ -284,8 +284,8 @@ anômalas.
 \texttt{shell\_exec('ping -c 2 ' . \$host)}. Metacaracteres do shell (\texttt{;}, \texttt{\&\&},
 \texttt{|}) permitem encadear comandos arbitrários.
 
-\textbf{Classificação.} OWASP Top 10:2021 --- A03:2021 \emph{Injection} \cite{owasp2021};
-CWE-78 \emph{OS Command Injection} \cite{cwe78}.
+\textbf{Classificação.} OWASP Top 10:2021 --- A03:2021 \emph{Injection} \cite{owasp};
+CWE-78 \emph{OS Command Injection} \cite{cwe}.
 
 \textbf{Exemplo de entrada.} \texttt{127.0.0.1; id}
 
@@ -315,8 +315,8 @@ original, sem validação de tipo ou extensão. O Apache interpreta arquivos \te
 diretório.
 
 \textbf{Classificação.} OWASP Top 10:2021 --- A04:2021 \emph{Insecure Design} e A05:2021
-\emph{Security Misconfiguration} \cite{owasp2021,owaspUpload}; CWE-434 \emph{Unrestricted Upload of
-File with Dangerous Type} \cite{cwe434}.
+\emph{Security Misconfiguration} \cite{owasp}; CWE-434 \emph{Unrestricted Upload of
+File with Dangerous Type} \cite{cwe}.
 
 \textbf{Reprodução (terminal).}
 \begin{lstlisting}
@@ -342,9 +342,9 @@ download; renomear arquivos; validar MIME e extensão; impedir interpretação P
 \textbf{Descrição.} \texttt{modelo.php} inclui arquivos a partir de
 \texttt{site/modelos/ . \$modelo}, permitindo sequências \texttt{../} e wrappers \texttt{php://}.
 
-\textbf{Classificação.} OWASP Top 10:2021 --- A03:2021 \emph{Injection} \cite{owasp2021};
+\textbf{Classificação.} OWASP Top 10:2021 --- A03:2021 \emph{Injection} \cite{owasp};
 CWE-22 \emph{Path Traversal} e CWE-829 \emph{Inclusion of Functionality from Untrusted Control
-Sphere} \cite{cwe22,cwe829}.
+Sphere} \cite{cwe}.
 
 \textbf{Exemplos de URL.}
 \begin{itemize}
@@ -406,8 +406,8 @@ primárias ou amplamente aceitas na comunidade de segurança de software: taxono
 riscos em aplicações web, entradas CWE alinhadas a cada falha implementada, RFC da IETF para
 nomes DNS de documentação, documentação oficial de PHP e Docker para a stack do laboratório, e o
 enunciado do projeto como requisito acadêmico. URLs foram verificadas em setembro de 2026; o OWASP
-Top 10:2021 permanece referência estável para classificação (edição 2025 disponível no mesmo
-portal \cite{owaspPortal}).
+Top 10:2021 permanece referência estável para classificação (edição mais recente no portal OWASP
+\cite{owasp}).
 
 \begin{thebibliography}{99}
 
@@ -420,56 +420,16 @@ Accessed: Sep. 30, 2026.
 Material didático da disciplina de Engenharia de Segurança, ``Enunciado do Projeto --- Partes 1 e
 2,'' documento interno, 2026, unpublished.
 
-\bibitem{owasp2021}
-OWASP Foundation, ``OWASP Top 10:2021,'' OWASP, 2021. [Online]. Available:
-\url{https://owasp.org/Top10/}. Accessed: Sep. 30, 2026.
-
-\bibitem{owaspPortal}
-OWASP Foundation, ``OWASP Top 10 Project,'' OWASP. [Online]. Available:
-\url{https://owasp.org/www-project-top-ten/}. Accessed: Sep. 30, 2026.
-
-\bibitem{owaspSql}
-OWASP Foundation, ``SQL Injection Prevention Cheat Sheet,'' OWASP Cheat Sheet Series. [Online].
-Available: \url{https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html}.
-Accessed: Sep. 30, 2026.
-
-\bibitem{owaspUpload}
-OWASP Foundation, ``File Upload Cheat Sheet,'' OWASP Cheat Sheet Series. [Online]. Available:
-\url{https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html}. Accessed:
-Sep. 30, 2026.
+\bibitem{owasp}
+OWASP Foundation, ``OWASP Top 10:2021'' and OWASP Cheat Sheet Series (incl.\ SQL Injection
+Prevention and File Upload cheat sheets), OWASP, 2021--2026. [Online]. Available:
+\url{https://owasp.org/Top10/} and \url{https://cheatsheetseries.owasp.org/}. Accessed: Sep. 30,
+2026.
 
 \bibitem{cwe}
-MITRE Corporation, ``Common Weakness Enumeration (CWE),'' Version 4.17, MITRE. [Online].
-Available: \url{https://cwe.mitre.org/}. Accessed: Sep. 30, 2026.
-
-\bibitem{cwe287}
-MITRE Corporation, ``CWE-287: Improper Authentication,'' MITRE. [Online]. Available:
-\url{https://cwe.mitre.org/data/definitions/287.html}. Accessed: Sep. 30, 2026.
-
-\bibitem{cwe89}
-MITRE Corporation, ``CWE-89: Improper Neutralization of Special Elements used in an SQL
-Command ('SQL Injection'),'' MITRE. [Online]. Available:
-\url{https://cwe.mitre.org/data/definitions/89.html}. Accessed: Sep. 30, 2026.
-
-\bibitem{cwe78}
-MITRE Corporation, ``CWE-78: Improper Neutralization of Special Elements used in an OS Command
-('OS Command Injection'),'' MITRE. [Online]. Available:
-\url{https://cwe.mitre.org/data/definitions/78.html}. Accessed: Sep. 30, 2026.
-
-\bibitem{cwe434}
-MITRE Corporation, ``CWE-434: Unrestricted Upload of File with Dangerous Type,'' MITRE.
-[Online]. Available: \url{https://cwe.mitre.org/data/definitions/434.html}. Accessed: Sep. 30,
-2026.
-
-\bibitem{cwe22}
-MITRE Corporation, ``CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path
-Traversal'),'' MITRE. [Online]. Available:
-\url{https://cwe.mitre.org/data/definitions/22.html}. Accessed: Sep. 30, 2026.
-
-\bibitem{cwe829}
-MITRE Corporation, ``CWE-829: Inclusion of Functionality from Untrusted Control Sphere,'' MITRE.
-[Online]. Available: \url{https://cwe.mitre.org/data/definitions/829.html}. Accessed: Sep. 30,
-2026.
+MITRE Corporation, ``Common Weakness Enumeration (CWE),'' Version 4.17, incl.\ CWE-22, CWE-78,
+CWE-89, CWE-287, CWE-434 e CWE-829 citados neste relatório. MITRE. [Online]. Available:
+\url{https://cwe.mitre.org/}. Accessed: Sep. 30, 2026.
 
 \bibitem{rfc2606}
 D. Eastlake and A. Panitz, ``Reserved Top Level DNS Names,'' RFC 2606, BCP 32, IETF, Jun. 1999.

